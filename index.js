@@ -1,41 +1,27 @@
 const { Client, GatewayIntentBits } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const { joinVoiceChannel, AudioPlayerStatus, createAudioPlayer, createAudioResource } = require('@discordjs/voice');
+const ytSearch = require('yt-search');
 const ytdl = require('ytdl-core');
-const ytSearch = require('yt-search'); // Import yt-search
-const express = require('express'); // Import express for HTTP server
-require('dotenv').config();
+const dotenv = require('dotenv');
+const { Readable } = require('stream');
 
-const queue = new Map(); // guildId -> queue object
+dotenv.config();
 
-// Create an Express app
-const app = express();
-const port = process.env.PORT || 3000; // Set port from env or default to 3000
-
-// Set up a basic route for health check
-app.get('/', (req, res) => {
-  res.send('Bot is running');
-});
-
-// Start the Express server
-app.listen(port, () => {
-  console.log(`Listening on port ${port}`);
-});
-
-// Create the Discord client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.MessageContent
-  ]
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
-// When the bot logs in
+const queue = new Map();
+
 client.once('ready', () => {
-  console.log(`✅ Logged in as ${client.user.tag}`);
+  console.log('Bot is ready!');
 });
 
-// Listen to messages
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
 
@@ -50,14 +36,25 @@ client.on('messageCreate', async (message) => {
     }
 
     try {
+      console.log(`Attempting to join channel: ${voiceChannel.name}`);
       const connection = joinVoiceChannel({
         channelId: voiceChannel.id,
         guildId: message.guild.id,
-        adapterCreator: message.guild.voiceAdapterCreator
+        adapterCreator: message.guild.voiceAdapterCreator,
       });
+
+      connection.on('stateChange', (oldState, newState) => {
+        console.log(`Voice connection state changed from ${oldState.status} to ${newState.status}`);
+      });
+
+      connection.on('error', (error) => {
+        console.error('Voice connection error:', error);
+        message.reply('❌ There was an error trying to join the voice channel.');
+      });
+
       message.reply(`✅ Joined the voice channel **${voiceChannel.name}**!`);
     } catch (error) {
-      console.error(error);
+      console.error('Error joining voice channel:', error);
       message.reply('❌ There was an error trying to join the voice channel.');
     }
   }
@@ -125,71 +122,31 @@ client.on('messageCreate', async (message) => {
     }
   }
 
-  // === !skip ===
-  if (command === '!skip') {
-    const serverQueue = queue.get(message.guild.id);
-    if (!serverQueue) return message.reply('❌ Nothing is playing.');
-    serverQueue.player.stop();
-    message.reply('⏭️ Skipped the song.');
-  }
-
-  // === !pause ===
-  if (command === '!pause') {
-    const serverQueue = queue.get(message.guild.id);
-    if (!serverQueue || !serverQueue.player) return message.reply('❌ Nothing is playing.');
-    serverQueue.player.pause();
-    message.reply('⏸️ Paused.');
-  }
-
-  // === !resume ===
-  if (command === '!resume') {
-    const serverQueue = queue.get(message.guild.id);
-    if (!serverQueue || !serverQueue.player) return message.reply('❌ Nothing to resume.');
-    serverQueue.player.unpause();
-    message.reply('▶️ Resumed.');
-  }
-
-  // === !leave ===
-  if (command === '!leave') {
-    const serverQueue = queue.get(message.guild.id);
-    if (!serverQueue) return message.reply('❌ I\'m not in a voice channel.');
-    serverQueue.connection.destroy();
-    queue.delete(message.guild.id);
-    message.reply('👋 Left the voice channel and cleared the queue.');
-  }
+  // other commands...
 });
 
-// 🔁 Play function
 async function playSong(guildId, song) {
   const serverQueue = queue.get(guildId);
   if (!song) {
-    serverQueue.connection.destroy();
+    serverQueue.voiceChannel.leave();
     queue.delete(guildId);
     return;
   }
 
   const stream = ytdl(song.url, { filter: 'audioonly' });
-  const resource = createAudioResource(stream, {
-    inputType: 'arbitrary',
-  });
-
+  const resource = createAudioResource(stream);
   const player = createAudioPlayer();
-  serverQueue.player = player;
-  serverQueue.connection.subscribe(player);
 
   player.play(resource);
-  serverQueue.textChannel.send(`🎶 Now playing: **${song.title}**`);
+
+  serverQueue.connection.subscribe(player);
 
   player.on(AudioPlayerStatus.Idle, () => {
     serverQueue.songs.shift();
     playSong(guildId, serverQueue.songs[0]);
   });
 
-  player.on('error', error => {
-    console.error(`❌ Player error: ${error.message}`);
-    serverQueue.songs.shift();
-    playSong(guildId, serverQueue.songs[0]);
-  });
+  serverQueue.textChannel.send(`🎶 Now playing: **${song.title}**`);
 }
 
 client.login(process.env.TOKEN);
