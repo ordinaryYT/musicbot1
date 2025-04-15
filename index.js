@@ -1,5 +1,5 @@
 const { Client, GatewayIntentBits } = require('discord.js');
-const { joinVoiceChannel, AudioPlayerStatus, createAudioPlayer, createAudioResource } = require('@discordjs/voice');
+const { joinVoiceChannel, AudioPlayerStatus, createAudioPlayer, createAudioResource, AudioPlayer } = require('@discordjs/voice');
 const ytSearch = require('yt-search');
 const ytdl = require('ytdl-core');
 const dotenv = require('dotenv');
@@ -91,7 +91,7 @@ client.on('messageCreate', async (message) => {
           textChannel: message.channel,
           voiceChannel: voiceChannel,
           connection: null,
-          player: null,
+          player: createAudioPlayer(),
           songs: [],
           playing: true
         };
@@ -121,10 +121,9 @@ client.on('messageCreate', async (message) => {
       return message.reply('❌ Failed to load the song.');
     }
   }
-
-  // other commands...
 });
 
+// Function to play a song
 async function playSong(guildId, song) {
   const serverQueue = queue.get(guildId);
   if (!song) {
@@ -133,20 +132,27 @@ async function playSong(guildId, song) {
     return;
   }
 
-  const stream = ytdl(song.url, { filter: 'audioonly' });
-  const resource = createAudioResource(stream);
-  const player = createAudioPlayer();
+  try {
+    const stream = ytdl(song.url, { filter: 'audioonly' });
+    const resource = createAudioResource(stream, {
+      inputType: ytdl.FFMPEG,
+    });
 
-  player.play(resource);
+    const player = serverQueue.player;
 
-  serverQueue.connection.subscribe(player);
+    player.play(resource);
+    serverQueue.connection.subscribe(player);
 
-  player.on(AudioPlayerStatus.Idle, () => {
-    serverQueue.songs.shift();
-    playSong(guildId, serverQueue.songs[0]);
-  });
+    player.on(AudioPlayerStatus.Idle, () => {
+      serverQueue.songs.shift();
+      playSong(guildId, serverQueue.songs[0]);
+    });
 
-  serverQueue.textChannel.send(`🎶 Now playing: **${song.title}**`);
+    serverQueue.textChannel.send(`🎶 Now playing: **${song.title}**`);
+  } catch (error) {
+    console.error('Error while playing song:', error);
+    serverQueue.textChannel.send('❌ There was an error trying to play the song.');
+  }
 }
 
 client.login(process.env.TOKEN);
