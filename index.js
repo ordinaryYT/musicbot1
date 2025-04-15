@@ -1,16 +1,11 @@
-const express = require('express');
 const { Client, GatewayIntentBits } = require('discord.js');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 require('dotenv').config();
 
-// 🌐 Web server for Render
-const app = express();
-const PORT = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('🎵 Discord Music Bot is online!'));
-app.listen(PORT, () => console.log(`🌐 Web listening on port ${PORT}`));
+const queue = new Map(); // guildId -> queue object
 
-// 🤖 Discord bot
+// Create the Discord client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -20,23 +15,43 @@ const client = new Client({
   ]
 });
 
-const queue = new Map(); // guildId -> queue object
-
+// When the bot logs in
 client.once('ready', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
+// Listen to messages
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
 
   const args = message.content.trim().split(/ +/g);
   const command = args.shift().toLowerCase();
 
+  // === !join ===
+  if (command === '!join') {
+    const voiceChannel = message.member?.voice.channel;
+    if (!voiceChannel) {
+      return message.reply('❌ You need to join a voice channel first!');
+    }
+
+    try {
+      const connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator
+      });
+      message.reply(`✅ Joined the voice channel **${voiceChannel.name}**!`);
+    } catch (error) {
+      console.error(error);
+      message.reply('❌ There was an error trying to join the voice channel.');
+    }
+  }
+
   // === !play ===
   if (command === '!play') {
     const query = args.join(' ');
     if (!query) return message.reply('❌ Please provide a song name or YouTube URL.');
-    const voiceChannel = message.member?.voice?.channel;
+    const voiceChannel = message.member?.voice.channel;
     if (!voiceChannel) return message.reply('❌ You must be in a voice channel.');
 
     const guildId = message.guild.id;
