@@ -34,19 +34,19 @@ client.on('messageCreate', async (message) => {
     if (!voiceChannel) return;
 
     try {
-      // 💬 Get response from OpenRouter AI
+      // 🔁 Request from OpenRouter (GPT-3.5 model)
       const response = await axios.post(
         'https://openrouter.ai/api/v1/chat/completions',
         {
-          model: 'mistralai/mixtral-8x7b', // You can change to claude/gpt/etc.
+          model: 'openai/gpt-3.5-turbo',
           messages: [
-            { role: 'system', content: 'You are a friendly AI that speaks in voice chat.' },
+            { role: 'system', content: 'You are a helpful voice assistant.' },
             { role: 'user', content: input },
           ],
         },
         {
           headers: {
-            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
             'Content-Type': 'application/json',
           },
         }
@@ -55,7 +55,7 @@ client.on('messageCreate', async (message) => {
       const aiReply = response.data.choices[0].message.content;
       console.log('🧠 AI Reply:', aiReply);
 
-      // 🗣 Convert text to speech (Google TTS)
+      // 🗣 Convert AI reply to speech using Google TTS
       const ttsUrl = googleTTS.getAudioUrl(aiReply, {
         lang: 'en',
         slow: false,
@@ -69,7 +69,7 @@ client.on('messageCreate', async (message) => {
 
       await new Promise((resolve) => writer.on('finish', resolve));
 
-      // 🎧 Join voice channel & speak
+      // 🎧 Join voice channel and play audio
       const connection = joinVoiceChannel({
         channelId: voiceChannel.id,
         guildId: message.guild.id,
@@ -84,9 +84,8 @@ client.on('messageCreate', async (message) => {
       player.on(AudioPlayerStatus.Idle, () => {
         connection.destroy();
       });
-
     } catch (err) {
-      console.error('❌ Error:', err);
+      console.error('❌ AI Error:', JSON.stringify(err.response?.data || err.message, null, 2));
     }
   }
 });
