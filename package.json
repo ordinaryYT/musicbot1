@@ -1,23 +1,21 @@
 {
-  "name": "discord-ai-voice-bot",
+  "name": "discord-voice-bot",
   "version": "1.0.0",
-  "description": "A Discord bot that uses OpenRouter AI and speaks responses using Google TTS.",
+  "description": "A Discord bot that joins voice channels and speaks responses using OpenRouter AI.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": ["discord", "bot", "ai", "openrouter", "voice", "tts"],
-  "author": "You",
-  "license": "MIT",
   "dependencies": {
-    "@discordjs/voice": "^0.16.0",
-    "axios": "^1.6.7",
-    "discord.js": "^14.14.1",
-    "dotenv": "^16.3.1",
-    "fs": "0.0.1-security",
-    "google-tts-api": "^2.0.1"
+    "discord.js": "^14.7.1",
+    "@discordjs/voice": "^0.16.1",
+    "google-tts-api": "^2.1.0",
+    "axios": "^1.5.0",
+    "dotenv": "^16.0.3",
+    "sodium": "^3.0.0"
   },
   "engines": {
-    "node": ">=18.x"
-  }
+    "node": ">=16.6.0"
+  },
+  "license": "ISC"
 }
