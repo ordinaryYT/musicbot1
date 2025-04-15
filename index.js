@@ -1,15 +1,30 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
+const ytSearch = require('yt-search'); // Import yt-search
+const express = require('express'); // Import express for HTTP server
 require('dotenv').config();
 
 const queue = new Map(); // guildId -> queue object
+
+// Create an Express app
+const app = express();
+const port = process.env.PORT || 3000; // Set port from env or default to 3000
+
+// Set up a basic route for health check
+app.get('/', (req, res) => {
+  res.send('Bot is running');
+});
+
+// Start the Express server
+app.listen(port, () => {
+  console.log(`Listening on port ${port}`);
+});
 
 // Create the Discord client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.MessageContent
   ]
@@ -63,8 +78,10 @@ client.on('messageCreate', async (message) => {
       if (isYoutubeURL) {
         songInfo = await ytdl.getInfo(query);
       } else {
-        const searchResults = await ytdl.search(query, { limit: 1 });
-        songInfo = await ytdl.getInfo(searchResults[0].url);
+        // Search by song name
+        const results = await ytSearch(query);
+        const song = results.videos[0];
+        songInfo = await ytdl.getInfo(song.url);
       }
 
       const song = {
