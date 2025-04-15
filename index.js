@@ -1,23 +1,26 @@
-// index.js
 const express = require('express');
 const { Client, GatewayIntentBits } = require('discord.js');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const play = require('play-dl');
 require('dotenv').config();
 
-// 🌐 Web server (for Render)
+// 🌐 Web server for Render
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('🎵 Discord Music Bot is online!'));
+app.listen(PORT, () => console.log(`🌐 Web listening on port ${PORT}`));
 
-app.get('/', (req, res) => {
-  res.send('🎵 Discord Music Bot is alive!');
-});
+// 🔐 Setup Spotify credentials
+(async () => {
+  await play.setToken({
+    spotify: {
+      client_id: process.env.SPOTIFY_CLIENT_ID,
+      client_secret: process.env.SPOTIFY_CLIENT_SECRET
+    }
+  });
+})();
 
-app.listen(PORT, () => {
-  console.log(`🌐 Web server listening on port ${PORT}`);
-});
-
-// 🤖 Discord bot setup
+// 🤖 Discord bot
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -42,7 +45,7 @@ client.on('messageCreate', async (message) => {
   // === !play ===
   if (command === '!play') {
     const query = args.join(' ');
-    if (!query) return message.reply('❌ Please provide a song name or URL.');
+    if (!query) return message.reply('❌ Please provide a song name, Spotify URL, or YouTube URL.');
     const voiceChannel = message.member?.voice?.channel;
     if (!voiceChannel) return message.reply('❌ You must be in a voice channel.');
 
@@ -51,15 +54,24 @@ client.on('messageCreate', async (message) => {
 
     let songInfo;
     try {
-      const searchResults = await play.search(query, { limit: 1 });
-      if (!searchResults.length) return message.reply('🔍 No results found.');
+      const isSpotify = play.sp_validate(query);
+      let searchResult;
+
+      if (isSpotify) {
+        const spotifyTrack = await play.sp_track(query);
+        searchResult = await play.search(`${spotifyTrack.name} ${spotifyTrack.artists[0].name}`, { limit: 1 });
+      } else {
+        searchResult = await play.search(query, { limit: 1 });
+      }
+
+      if (!searchResult.length) return message.reply('🔍 No results found.');
       songInfo = {
-        title: searchResults[0].title,
-        url: searchResults[0].url
+        title: searchResult[0].title,
+        url: searchResult[0].url
       };
     } catch (err) {
       console.error(err);
-      return message.reply('❌ Failed to search for the song.');
+      return message.reply('❌ Failed to load the song.');
     }
 
     if (!serverQueue) {
@@ -98,7 +110,7 @@ client.on('messageCreate', async (message) => {
   if (command === '!skip') {
     const serverQueue = queue.get(message.guild.id);
     if (!serverQueue) return message.reply('❌ Nothing is playing.');
-    serverQueue.player.stop(); // Triggers the "Idle" event
+    serverQueue.player.stop();
     message.reply('⏭️ Skipped the song.');
   }
 
@@ -113,7 +125,7 @@ client.on('messageCreate', async (message) => {
   // === !resume ===
   if (command === '!resume') {
     const serverQueue = queue.get(message.guild.id);
-    if (!serverQueue || !serverQueue.player) return message.reply('❌ Nothing is paused.');
+    if (!serverQueue || !serverQueue.player) return message.reply('❌ Nothing to resume.');
     serverQueue.player.unpause();
     message.reply('▶️ Resumed.');
   }
@@ -128,7 +140,7 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-// === Function to play songs ===
+// 🔁 Play function
 async function playSong(guildId, song) {
   const serverQueue = queue.get(guildId);
   if (!song) {
