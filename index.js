@@ -5,9 +5,9 @@ const {
   createAudioResource,
   AudioPlayerStatus,
 } = require('@discordjs/voice');
-const googleTTS = require('google-tts-api');
-const fs = require('fs');
+const googleTTS = require('google-tts');
 const axios = require('axios');
+const fs = require('fs');
 require('dotenv').config();
 
 const client = new Client({
