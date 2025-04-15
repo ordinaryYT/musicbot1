@@ -1,21 +1,23 @@
 {
-  "name": "discord-music-bot",
+  "name": "discord-ai-voice-bot",
   "version": "1.0.0",
-  "description": "A simple music bot using Spotify",
+  "description": "A Discord bot that uses OpenRouter AI and speaks responses using Google TTS.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "keywords": ["discord", "bot", "ai", "openrouter", "voice", "tts"],
+  "author": "You",
+  "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.0.3",
-    "spotify-web-api-node": "^5.0.0",
-    "ytdl-core": "^4.9.1",
-    "@discordjs/voice": "^0.16.1",
-    "dotenv": "^16.0.0",
-    "yt-search": "^3.0.0"
+    "@discordjs/voice": "^0.16.0",
+    "axios": "^1.6.7",
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "fs": "0.0.1-security",
+    "google-tts-api": "^2.0.1"
   },
   "engines": {
-    "node": ">=16.0.0"
-  },
-  "license": "MIT"
+    "node": ">=18.x"
+  }
 }
