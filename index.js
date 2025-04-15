@@ -1,9 +1,23 @@
 // index.js
+const express = require('express');
 const { Client, GatewayIntentBits } = require('discord.js');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection } = require('@discordjs/voice');
 const play = require('play-dl');
 require('dotenv').config();
 
+// 🌐 Tiny web server (Render expects a running service)
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('🎵 Discord Music Bot is running!');
+});
+
+app.listen(PORT, () => {
+  console.log(`🌐 Web server listening on port ${PORT}`);
+});
+
+// 🤖 Discord bot setup
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -26,9 +40,9 @@ client.on('messageCreate', async (message) => {
   if (command === '!play') {
     const url = args[0];
     if (!url) return message.reply('❌ Please provide a YouTube URL.');
-    
+
     const voiceChannel = message.member?.voice?.channel;
-    if (!voiceChannel) return message.reply('❌ You must be in a voice channel first.');
+    if (!voiceChannel) return message.reply('❌ You must be in a voice channel.');
 
     try {
       const stream = await play.stream(url);
