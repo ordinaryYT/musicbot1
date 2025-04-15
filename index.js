@@ -1,8 +1,10 @@
 const { Client, GatewayIntentBits } = require('discord.js');
-const { joinVoiceChannel, AudioPlayerStatus, createAudioPlayer, createAudioResource, AudioPlayer } = require('@discordjs/voice');
+const { joinVoiceChannel, AudioPlayerStatus, createAudioPlayer, createAudioResource } = require('@discordjs/voice');
 const ytSearch = require('yt-search');
 const ytdl = require('ytdl-core');
 const dotenv = require('dotenv');
+const SpotifyWebApi = require('spotify-web-api-node');
+const axios = require('axios');
 const { Readable } = require('stream');
 
 dotenv.config();
@@ -15,6 +17,26 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
   ],
 });
+
+const spotifyApi = new SpotifyWebApi({
+  clientId: process.env.SPOTIFY_CLIENT_ID,
+  clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
+});
+
+let accessToken;
+
+async function authenticateSpotify() {
+  try {
+    const authResponse = await spotifyApi.clientCredentialsGrant();
+    accessToken = authResponse.body['access_token'];
+    spotifyApi.setAccessToken(accessToken);
+    console.log('Spotify authenticated successfully.');
+  } catch (error) {
+    console.error('Error authenticating with Spotify:', error);
+  }
+}
+
+authenticateSpotify();
 
 const queue = new Map();
 
@@ -36,7 +58,6 @@ client.on('messageCreate', async (message) => {
     }
 
     try {
-      console.log(`Attempting to join channel: ${voiceChannel.name}`);
       const connection = joinVoiceChannel({
         channelId: voiceChannel.id,
         guildId: message.guild.id,
@@ -62,7 +83,7 @@ client.on('messageCreate', async (message) => {
   // === !play ===
   if (command === '!play') {
     const query = args.join(' ');
-    if (!query) return message.reply('❌ Please provide a song name or YouTube URL.');
+    if (!query) return message.reply('❌ Please provide a song name or Spotify URL.');
     const voiceChannel = message.member?.voice.channel;
     if (!voiceChannel) return message.reply('❌ You must be in a voice channel.');
 
@@ -70,21 +91,29 @@ client.on('messageCreate', async (message) => {
     let serverQueue = queue.get(guildId);
 
     let songInfo;
+
     try {
-      const isYoutubeURL = ytdl.validateURL(query);
-      if (isYoutubeURL) {
-        songInfo = await ytdl.getInfo(query);
+      if (query.includes('spotify.com')) {
+        // Handle Spotify URL
+        const trackId = query.split('/').pop().split('?')[0];
+        songInfo = await spotifyApi.getTrack(trackId);
       } else {
-        // Search by song name
-        const results = await ytSearch(query);
-        const song = results.videos[0];
-        songInfo = await ytdl.getInfo(song.url);
+        // Search by name on Spotify
+        const searchResults = await spotifyApi.searchTracks(query, { limit: 1 });
+        songInfo = searchResults.body.tracks.items[0];
       }
 
       const song = {
-        title: songInfo.videoDetails.title,
-        url: songInfo.videoDetails.video_url
+        title: songInfo.name,
+        url: songInfo.external_urls.spotify,
       };
+
+      // Get the song URL on YouTube (search by song title)
+      const searchResult = await ytSearch(song.title);
+      const youtubeSong = searchResult.videos[0];
+
+      const youtubeSongUrl = youtubeSong.url;
+      const songStream = ytdl(youtubeSongUrl, { filter: 'audioonly' });
 
       if (!serverQueue) {
         const queueConstruct = {
