@@ -1,93 +1,103 @@
-const { Client, GatewayIntentBits } = require('discord.js');
-const {
-  joinVoiceChannel,
-  createAudioPlayer,
-  createAudioResource,
-  AudioPlayerStatus,
-} = require('@discordjs/voice');
-const googleTTS = require('google-tts');
-const axios = require('axios');
-const fs = require('fs');
-require('dotenv').config();
+import os
+import discord
+from discord.ext import commands
+import yt_dlp
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
+from dotenv import load_dotenv
+import json
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
-});
+# Load environment variables
+load_dotenv()
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
-client.once('ready', () => {
-  console.log(`🤖 Logged in as ${client.user.tag}`);
-});
+# Load config
+with open('config.json') as f:
+    config = json.load(f)
 
-client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;
+# Spotify API setup
+sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
+    client_id=SPOTIFY_CLIENT_ID,
+    client_secret=SPOTIFY_CLIENT_SECRET
+))
 
-  if (message.content.startsWith('!say')) {
-    const input = message.content.slice(5).trim();
-    if (!input) return;
+# Discord bot setup
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix=config["prefix"], intents=intents)
 
-    const voiceChannel = message.member.voice.channel;
-    if (!voiceChannel) return;
+queue = []
 
-    try {
-      // 🔁 Request from OpenRouter (GPT-3.5 model)
-      const response = await axios.post(
-        'https://openrouter.ai/api/v1/chat/completions',
-        {
-          model: 'openai/gpt-3.5-turbo',
-          messages: [
-            { role: 'system', content: 'You are a helpful voice assistant.' },
-            { role: 'user', content: input },
-          ],
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+@bot.event
+async def on_ready():
+    print(f"✅ Logged in as {bot.user}")
 
-      const aiReply = response.data.choices[0].message.content;
-      console.log('🧠 AI Reply:', aiReply);
-
-      // 🗣 Convert AI reply to speech using Google TTS
-      const ttsUrl = googleTTS.getAudioUrl(aiReply, {
-        lang: 'en',
-        slow: false,
-        host: 'https://translate.google.com',
-      });
-
-      const filePath = './tts.mp3';
-      const audioStream = await axios({ url: ttsUrl, responseType: 'stream' });
-      const writer = fs.createWriteStream(filePath);
-      audioStream.data.pipe(writer);
-
-      await new Promise((resolve) => writer.on('finish', resolve));
-
-      // 🎧 Join voice channel and play audio
-      const connection = joinVoiceChannel({
-        channelId: voiceChannel.id,
-        guildId: message.guild.id,
-        adapterCreator: message.guild.voiceAdapterCreator,
-      });
-
-      const player = createAudioPlayer();
-      const resource = createAudioResource(filePath);
-      player.play(resource);
-      connection.subscribe(player);
-
-      player.on(AudioPlayerStatus.Idle, () => {
-        connection.destroy();
-      });
-    } catch (err) {
-      console.error('❌ AI Error:', JSON.stringify(err.response?.data || err.message, null, 2));
+def search_youtube(query):
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'quiet': True,
+        'default_search': 'ytsearch',
+        'extract_flat': 'in_playlist'
     }
-  }
-});
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            info = ydl.extract_info(query, download=False)
+            return info['entries'][0]['url']
+        except Exception as e:
+            print(f"🔍 YouTube search error: {e}")
+            return None
 
-client.login(process.env.TOKEN);
+@bot.command()
+async def play(ctx, *, query: str):
+    if not ctx.author.voice or not ctx.author.voice.channel:
+        await ctx.send(config["messages"]["not_in_voice"])
+        return
+
+    voice_channel = ctx.author.voice.channel
+    if ctx.voice_client is None:
+        await voice_channel.connect()
+
+    vc = ctx.voice_client
+
+    # Check if it's a Spotify link
+    if "open.spotify.com" in query:
+        if "track" in query:
+            track_id = query.split("/")[-1].split("?")[0]
+            track = sp.track(track_id)
+            search_query = f"{track['name']} {track['artists'][0]['name']}"
+        else:
+            await ctx.send(config["messages"]["spotify_not_supported"])
+            return
+    else:
+        search_query = query
+
+    yt_url = search_youtube(search_query)
+    if yt_url:
+        queue.append(yt_url)
+        await ctx.send(config["messages"]["track_added"].format(track=search_query))
+        if not vc.is_playing():
+            await play_next(ctx)
+    else:
+        await ctx.send(config["messages"]["track_not_found"])
+
+async def play_next(ctx):
+    if queue:
+        vc = ctx.voice_client
+        url = queue.pop(0)
+        vc.play(discord.FFmpegPCMAudio(url), after=lambda e: bot.loop.create_task(play_next(ctx)))
+
+@bot.command()
+async def skip(ctx):
+    if ctx.voice_client and ctx.voice_client.is_playing():
+        ctx.voice_client.stop()
+        await ctx.send(config["messages"]["skipped"])
+
+@bot.command()
+async def leave(ctx):
+    if ctx.voice_client:
+        await ctx.voice_client.disconnect()
+        await ctx.send(config["messages"]["disconnected"])
+
+bot.run(DISCORD_TOKEN)
