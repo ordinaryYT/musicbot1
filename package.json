@@ -1,8 +1,14 @@
 {
-  "dependencies": [
-    "discord.py",
-    "youtube_dl",
-    "python-dotenv",
-    "ffmpeg"
-  ]
+  "name": "discord-bot",
+  "version": "1.0.0",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
 }
