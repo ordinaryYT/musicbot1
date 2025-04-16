@@ -1,4 +1,0 @@
-discord.py
-youtube_dl
-python-dotenv
-ffmpeg
