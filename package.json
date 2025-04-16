@@ -1,15 +1,17 @@
 {
-  "prefix": "!",
-  "default_volume": 0.5,
-  "allowed_guilds": [],
-  "admin_users": [],
-  "license": "MIT",
-  "messages": {
-    "not_in_voice": "❌ You must be in a voice channel to use this command.",
-    "track_added": "🎵 Added to queue: {track}",
-    "track_not_found": "⚠️ Could not find that track.",
-    "spotify_not_supported": "❌ Only Spotify **track** links are supported at the moment.",
-    "disconnected": "👋 Disconnected from voice channel.",
-    "skipped": "⏭️ Skipped current track."
+  "name": "discord-music-bot",
+  "version": "1.0.0",
+  "description": "A simple Discord music bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.0.3",
+    "@discordjs/voice": "^6.1.0",
+    "ytdl-core": "^4.11.1",
+    "dotenv": "^16.0.3"
   }
 }
