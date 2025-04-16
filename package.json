@@ -3,6 +3,7 @@
   "default_volume": 0.5,
   "allowed_guilds": [],
   "admin_users": [],
+  "license": "MIT",
   "messages": {
     "not_in_voice": "❌ You must be in a voice channel to use this command.",
     "track_added": "🎵 Added to queue: {track}",
