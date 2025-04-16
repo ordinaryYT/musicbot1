@@ -1,5 +1,21 @@
 const { Client, GatewayIntentBits } = require('discord.js');
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.MessageContent] });
+const express = require('express');
+const app = express();
+const port = process.env.PORT || 3000;  // Set port from environment or default to 3000
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.MessageContent],
+});
+
+// Set up a basic route
+app.get('/', (req, res) => {
+  res.send('Hello, this is your bot’s web server!');
+});
+
+// Start Express server
+app.listen(port, () => {
+  console.log(`Web server running on port ${port}`);
+});
 
 // Log when the bot is ready
 client.once('ready', () => {
@@ -7,7 +23,7 @@ client.once('ready', () => {
 });
 
 // Join a voice channel
-client.on('messageCreate', async message => {
+client.on('messageCreate', async (message) => {
   if (message.content === '!join') {
     if (message.member.voice.channel) {
       const connection = await message.member.voice.channel.join();
